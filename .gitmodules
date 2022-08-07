@@ -1,0 +1,3 @@
+[submodule "RS_BSK"]
+	path = RS_BSK
+	url = https://reedjacobp@bitbucket.org/avslab/basilisk.git
