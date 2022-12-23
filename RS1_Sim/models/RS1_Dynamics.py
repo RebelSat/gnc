@@ -35,6 +35,10 @@ class RS1DynamicModels():
         self.earth = None
         self.moon = None
         self.epochMsg = None
+        # self.RW1 = None
+        # self.RW2 = None
+        # self.RW3 = None
+        # self.RW4 = None
 
         # Define process name, task name and task time-step
         self.processName = SimBase.DynamicsProcessName
@@ -229,6 +233,7 @@ class RS1DynamicModels():
             cssDevice.sunInMsg.subscribeTo(self.gravFactory.spiceObject.planetStateOutMsgs[self.sun])
             cssDevice.stateInMsg.subscribeTo(self.scObject.scStateOutMsg)
             cssDevice.sunEclipseInMsg.subscribeTo(self.eclipseObject.eclipseOutMsgs[0])
+            cssDevice.this.disown()
 
         # setup CSS sensor normal vectors in body frame components
         nHat_B_List = [
