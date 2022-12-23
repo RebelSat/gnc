@@ -131,4 +131,5 @@ def run(showPlots):
     return figureList
 
 if __name__ == "__main__":
+    sys.settrace
     run(True)
