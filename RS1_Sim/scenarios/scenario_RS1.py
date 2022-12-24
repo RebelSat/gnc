@@ -1,10 +1,7 @@
 #
 # RebelSat-1 Simulation
 # 
-# Description:
-# 
-#
-# 
+# Description: Simulates RS-1 in LEO 
 # 
 
 # Import utilities
@@ -44,17 +41,14 @@ class scenario_RS1(RS1Sim, RS1Scenario):
         self.log_outputs()
 
         # if this scenario is to interface with the BSK Viz, uncomment the following line
-        vizSupport.enableUnityVisualization(self, self.DynModels.taskName, self.DynModels.scObject
-                                            # , saveFile=__file__
-                                            , rwEffectorList=self.DynModels.rwStateEffector
-                                            )
+        vizSupport.enableUnityVisualization(self, self.DynModels.taskName, self.DynModels.scObject)
 
     def configure_initial_conditions(self):
         DynModels = self.get_DynModel()
 
         # Configure Dynamics initial conditions
         oe = orbitalMotion.ClassicElements()
-        oe.a = 7000000.0  # meters
+        oe.a = 400000.0  # meters
         oe.e = 0.1
         oe.i = 33.3 * macros.D2R
         oe.Omega = 48.2 * macros.D2R
@@ -65,8 +59,8 @@ class scenario_RS1(RS1Sim, RS1Scenario):
         orbitalMotion.rv2elem(mu, rN, vN)
         DynModels.scObject.hub.r_CN_NInit = rN  # m   - r_CN_N
         DynModels.scObject.hub.v_CN_NInit = vN  # m/s - v_CN_N
-        DynModels.scObject.hub.sigma_BNInit = [[0.1], [0.2], [-0.3]]  # sigma_BN_B
-        DynModels.scObject.hub.omega_BN_BInit = [[0.001], [-0.01], [0.03]]  # rad/s - omega_BN_B
+        DynModels.scObject.hub.sigma_BNInit = [[0.1], [0.2], [-0.3]]  # sigma_BN_B, initial attitude of B frame represented as an MRP
+        DynModels.scObject.hub.omega_BN_BInit = [[0], [0], [0]]  # rad/s - omega_BN_B, initial angular velocity of B frame represented in B frame
 
     def log_outputs(self):
         # Dynamics process outputs
