@@ -10,12 +10,9 @@
 import numpy as np
 from Basilisk.utilities import macros as mc
 from Basilisk.utilities import unitTestSupport as sp
-from Basilisk.simulation import (spacecraft, extForceTorque, simpleNav,
-                                 reactionWheelStateEffector, coarseSunSensor, eclipse)
-from Basilisk.simulation import thrusterDynamicEffector
+from Basilisk.simulation import (spacecraft, extForceTorque, simpleNav, coarseSunSensor, eclipse)
 from Basilisk.simulation import ephemerisConverter
-from Basilisk.utilities import simIncludeThruster
-from Basilisk.utilities import simIncludeRW, simIncludeGravBody
+from Basilisk.utilities import simIncludeGravBody
 from Basilisk.utilities import RigidBodyKinematics as rbk
 from Basilisk.topLevelModules import pyswice
 from Basilisk.architecture import messaging
@@ -35,10 +32,6 @@ class RS1DynamicModels():
         self.earth = None
         self.moon = None
         self.epochMsg = None
-        # self.RW1 = None
-        # self.RW2 = None
-        # self.RW3 = None
-        # self.RW4 = None
 
         # Define process name, task name and task time-step
         self.processName = SimBase.DynamicsProcessName
@@ -51,13 +44,10 @@ class RS1DynamicModels():
         # Instantiate Dyn modules as objects
         self.scObject = spacecraft.Spacecraft()
         self.gravFactory = simIncludeGravBody.gravBodyFactory()
-        self.rwFactory = simIncludeRW.rwFactory()
         self.extForceTorqueObject = extForceTorque.ExtForceTorque()
         self.simpleNavObject = simpleNav.SimpleNav()
         self.eclipseObject = eclipse.Eclipse()
         self.CSSConstellationObject = coarseSunSensor.CSSConstellation()
-        self.rwStateEffector = reactionWheelStateEffector.ReactionWheelStateEffector()
-        self.thrustersDynamicEffector = thrusterDynamicEffector.ThrusterDynamicEffector()
         self.EarthEphemObject = ephemerisConverter.EphemerisConverter()
 
         # Initialize all modules and write init one-time messages
@@ -70,31 +60,32 @@ class RS1DynamicModels():
         SimBase.AddModelToTask(self.taskName, self.EarthEphemObject, 199)
         SimBase.AddModelToTask(self.taskName, self.CSSConstellationObject, None, 108)
         SimBase.AddModelToTask(self.taskName, self.eclipseObject, None, 204)
-        SimBase.AddModelToTask(self.taskName, self.rwStateEffector, None, 301)
         SimBase.AddModelToTask(self.taskName, self.extForceTorqueObject, None, 300)
         
-        SimBase.createNewEvent("addOneTimeRWFault", self.processTasksTimeStep, True,
-            ["self.TotalSim.CurrentNanos>=self.oneTimeFaultTime and self.oneTimeRWFaultFlag==1"],
-            ["self.DynModels.AddRWFault('friction',0.05,1, self.TotalSim.CurrentNanos)", "self.oneTimeRWFaultFlag=0"])
+        # SimBase.createNewEvent("addOneTimeRWFault", self.processTasksTimeStep, True,
+        #    ["self.TotalSim.CurrentNanos>=self.oneTimeFaultTime and self.oneTimeRWFaultFlag==1"],
+        #    ["self.DynModels.AddRWFault('friction',0.05,1, self.TotalSim.CurrentNanos)", "self.oneTimeRWFaultFlag=0"])
 
         
-        SimBase.createNewEvent("addRepeatedRWFault", self.processTasksTimeStep, True,
-            ["self.repeatRWFaultFlag==1"],
-            ["self.DynModels.PeriodicRWFault(1./3000,'friction',0.005,1, self.TotalSim.CurrentNanos)", "self.setEventActivity('addRepeatedRWFault',True)"])
+        # SimBase.createNewEvent("addRepeatedRWFault", self.processTasksTimeStep, True,
+        #    ["self.repeatRWFaultFlag==1"],
+        #    ["self.DynModels.PeriodicRWFault(1./3000,'friction',0.005,1, self.TotalSim.CurrentNanos)", "self.setEventActivity('addRepeatedRWFault',True)"])
 
     # ------------------------------------------------------------------------------------------- #
     # These are module-initialization methods
 
+    # Spacecraft Model - Include more accurate model later 
+    #   B Frame is located at CoM
     def SetSpacecraftHub(self):
         """
         Specify the spacecraft hub parameters.
         """
         self.scObject.ModelTag = "RS-1"
         # -- Crate a new variable for the sim sc inertia I_sc. Note: this is currently accessed from FSWClass
-        self.I_sc = [900., 0., 0.,
-                     0., 800., 0.,
-                     0., 0., 600.]
-        self.scObject.hub.mHub = 750.0  # kg - spacecraft mass
+        self.I_sc = [1e-11, 1e-9, 2e-11,
+                    -1e9, 1e-11, -7e-11,
+                    -7e-11, -2e-11, 1e-9]
+        self.scObject.hub.mHub = 1.519  # kg - spacecraft mass
         self.scObject.hub.r_BcB_B = [[0.0], [0.0], [0.0]]  # m - position vector of body-fixed point B relative to CM
         self.scObject.hub.IHubPntBc_B = sp.np2EigenMatrix3d(self.I_sc)
 
@@ -145,84 +136,6 @@ class RS1DynamicModels():
         self.simpleNavObject.ModelTag = "SimpleNavigation"
         self.simpleNavObject.scStateInMsg.subscribeTo(self.scObject.scStateOutMsg)
 
-    def SetReactionWheelDynEffector(self):
-        """Set the 4 reaction wheel devices."""
-        # specify RW momentum capacity
-        maxRWMomentum = 50.  # Nms
-
-        # Define orthogonal RW pyramid
-        # -- Pointing directions
-        rwElAngle = np.array([40.0, 40.0, 40.0, 40.0])*mc.D2R
-        rwAzimuthAngle = np.array([45.0, 135.0, 225.0, 315.0])*mc.D2R
-        rwPosVector = [[0.8, 0.8, 1.79070],
-                       [0.8, -0.8, 1.79070],
-                       [-0.8, -0.8, 1.79070],
-                       [-0.8, 0.8, 1.79070]
-                       ]
-
-        gsHat = (rbk.Mi(-rwAzimuthAngle[0],3).dot(rbk.Mi(rwElAngle[0],2))).dot(np.array([1,0,0]))
-        self.RW1 = self.rwFactory.create('Honeywell_HR16',
-            gsHat,
-            maxMomentum=maxRWMomentum,
-            rWB_B=rwPosVector[0])
-        
-        gsHat = (rbk.Mi(-rwAzimuthAngle[1],3).dot(rbk.Mi(rwElAngle[1],2))).dot(np.array([1,0,0]))
-        self.RW2 = self.rwFactory.create('Honeywell_HR16',
-            gsHat,
-            maxMomentum=maxRWMomentum,
-            rWB_B=rwPosVector[1])
-
-        gsHat = (rbk.Mi(-rwAzimuthAngle[2],3).dot(rbk.Mi(rwElAngle[2],2))).dot(np.array([1,0,0]))
-        self.RW3 = self.rwFactory.create('Honeywell_HR16',
-            gsHat,
-            maxMomentum=maxRWMomentum,
-            rWB_B=rwPosVector[2])
-            
-        gsHat = (rbk.Mi(-rwAzimuthAngle[3],3).dot(rbk.Mi(rwElAngle[3],2))).dot(np.array([1,0,0]))
-        self.RW4 = self.rwFactory.create('Honeywell_HR16',
-            gsHat,
-            maxMomentum=maxRWMomentum,
-            rWB_B=rwPosVector[3])
-
-        self.rwFactory.addToSpacecraft("RWA", self.rwStateEffector, self.scObject)
-
-    def SetThrusterStateEffector(self):
-        """Set the 8 ACS thrusters."""
-        # Make a fresh TH factory instance, this is critical to run multiple times
-        thFactory = simIncludeThruster.thrusterFactory()
-
-        # 8 thrusters are modeled that act in pairs to provide the desired torque
-        thPos = [
-            [825.5/1000.0, 880.3/1000.0, 1765.3/1000.0],
-            [825.5/1000.0, 880.3/1000.0, 260.4/1000.0],
-            [880.3/1000.0, 825.5/1000.0, 1765.3/1000.0],
-            [880.3/1000.0, 825.5/1000.0, 260.4/1000.0],
-            [-825.5/1000.0, -880.3/1000.0, 1765.3/1000.0],
-            [-825.5/1000.0, -880.3/1000.0, 260.4/1000.0],
-            [-880.3/1000.0, -825.5/1000.0, 1765.3/1000.0],
-            [-880.3/1000.0, -825.5/1000.0, 260.4/1000.0]
-                 ]
-        thDir = [
-            [0.0, -1.0, 0.0],
-            [0.0, -1.0, 0.0],
-            [-1.0, 0.0, 0.0],
-            [-1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0]
-        ]
-        for pos_B, dir_B in zip(thPos, thDir):
-            thFactory.create(
-                'MOOG_Monarc_1'
-                , pos_B
-                , dir_B
-            )
-        # create thruster object container and tie to spacecraft object
-        thFactory.addToSpacecraft("ACS Thrusters",
-                                  self.thrustersDynamicEffector,
-                                  self.scObject)
-
     def SetCSSConstellation(self):
         """Set the 8 CSS sensors"""
         self.CSSConstellationObject.ModelTag = "cssConstellation"
@@ -260,33 +173,6 @@ class RS1DynamicModels():
         # assign the list of CSS devices to the CSS array class
         self.CSSConstellationObject.sensorList = coarseSunSensor.CSSVector(cssList)
 
-    # Method for adding reaction wheel faults
-    def PeriodicRWFault(self, probability, faultType, fault, faultRW, currentTime):
-        """
-        Adds a fault periodically. Probability is the chance of the fault occurring per update.
-        """
-        if np.random.uniform() < probability:
-            self.AddRWFault(faultType, fault, faultRW, currentTime)
-        
-        
-    
-    def AddRWFault(self, faultType, fault, faultRW, currentTime):
-        """
-        Adds a static friction fault to the reaction wheel.
-        """
-        self.RWFaultLog.append([faultType, fault, faultRW, currentTime*mc.NANO2MIN])
-        if faultType == "friction":
-            if faultRW == 1:
-                self.RW1.fCoulomb += fault
-            elif faultRW == 2:
-                self.RW2.fCoulomb += fault
-            elif faultRW == 3:
-                self.RW3.fCoulomb += fault
-            elif faultRW == 4:
-                self.RW4.fCoulomb += fault
-        else:
-            print("Invalid fault type. No fault added.")
-
     # Global call to initialize every module
     def InitAllDynObjects(self):
         """
@@ -298,7 +184,3 @@ class RS1DynamicModels():
         self.SetSimpleNavObject()
         self.SetEclipseObject()
         self.SetCSSConstellation()
-
-        self.SetReactionWheelDynEffector()
-        self.SetThrusterStateEffector()
-

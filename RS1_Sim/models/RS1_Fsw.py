@@ -12,7 +12,6 @@ import math
 from Basilisk.utilities import macros as mc
 
 from Basilisk.fswAlgorithms import (hillPoint, inertial3D, attTrackingError, mrpFeedback,
-                                    rwMotorTorque,
                                     velocityPoint, mrpSteering, rateServoFullNonlinear,
                                     sunSafePoint, cssWlsEst)
 
@@ -34,7 +33,6 @@ class RS1FswModels:
         self.cmdTorqueDirectMsg = None
         self.attRefMsg = None
         self.attGuidMsg = None
-        self.cmdRwMotorMsg = None
 
         # Define process name and default time-step for all FSW tasks defined later on
         self.processName = SimBase.FSWProcessName
@@ -81,10 +79,6 @@ class RS1FswModels:
         self.rateServoWrap = SimBase.setModelDataWrap(self.rateServoData)
         self.rateServoWrap.ModelTag = "rate_servo"
 
-        self.rwMotorTorqueData = rwMotorTorque.rwMotorTorqueConfig()
-        self.rwMotorTorqueWrap = SimBase.setModelDataWrap(self.rwMotorTorqueData)
-        self.rwMotorTorqueWrap.ModelTag = "rwMotorTorque"
-
         # create the FSW module gateway messages
         self.setupGatewayMsgs(SimBase)
 
@@ -117,11 +111,9 @@ class RS1FswModels:
 
         SimBase.AddModelToTask("mrpSteeringRWsTask", self.mrpSteeringWrap, self.mrpSteeringData, 10)
         SimBase.AddModelToTask("mrpSteeringRWsTask", self.rateServoWrap, self.rateServoData, 9)
-        SimBase.AddModelToTask("mrpSteeringRWsTask", self.rwMotorTorqueWrap, self.rwMotorTorqueData, 8)
-
+    
         SimBase.AddModelToTask("mrpFeedbackRWsTask", self.mrpFeedbackRWsWrap, self.mrpFeedbackRWsData, 9)
-        SimBase.AddModelToTask("mrpFeedbackRWsTask", self.rwMotorTorqueWrap, self.rwMotorTorqueData, 8)
-
+    
         # Create events to be called for triggering GN&C maneuvers
         SimBase.fswProc.disableAllTasks()
 
@@ -263,8 +255,6 @@ class RS1FswModels:
         self.mrpFeedbackRWsData.integralLimit = 2. / self.mrpFeedbackRWsData.Ki * 0.1
 
         self.mrpFeedbackRWsData.vehConfigInMsg.subscribeTo(self.vcMsg)
-        self.mrpFeedbackRWsData.rwSpeedsInMsg.subscribeTo(SimBase.DynModels.rwStateEffector.rwSpeedOutMsg)
-        self.mrpFeedbackRWsData.rwParamsInMsg.subscribeTo(self.fswRwConfigMsg)
         self.mrpFeedbackRWsData.guidInMsg.subscribeTo(self.attGuidMsg)
         cMsgPy.CmdTorqueBodyMsg_C_addAuthor(self.mrpFeedbackRWsData.cmdTorqueOutMsg, self.cmdTorqueMsg)
 
@@ -280,8 +270,6 @@ class RS1FswModels:
         """Set the rate servo module"""
         self.rateServoData.guidInMsg.subscribeTo(self.attGuidMsg)
         self.rateServoData.vehConfigInMsg.subscribeTo(self.vcMsg)
-        self.rateServoData.rwParamsInMsg.subscribeTo(self.fswRwConfigMsg)
-        self.rateServoData.rwSpeedsInMsg.subscribeTo(SimBase.DynModels.rwStateEffector.rwSpeedOutMsg)
         self.rateServoData.rateSteeringInMsg.subscribeTo(self.mrpSteeringData.rateCmdOutMsg)
         cMsgPy.CmdTorqueBodyMsg_C_addAuthor(self.rateServoData.cmdTorqueOutMsg, self.cmdTorqueMsg)
 
@@ -313,19 +301,6 @@ class RS1FswModels:
 
         self.fswRwConfigMsg = fswSetupRW.writeConfigMessage()
 
-    def SetRWMotorTorque(self):
-        """Set the RW motor torque information"""
-        controlAxes_B = [
-            1.0, 0.0, 0.0
-            , 0.0, 1.0, 0.0
-            , 0.0, 0.0, 1.0
-        ]
-        self.rwMotorTorqueData.controlAxes_B = controlAxes_B
-        self.rwMotorTorqueData.vehControlInMsg.subscribeTo(self.cmdTorqueMsg)
-        cMsgPy.ArrayMotorTorqueMsg_C_addAuthor(self.rwMotorTorqueData.rwMotorTorqueOutMsg, self.cmdRwMotorMsg)
-        self.rwMotorTorqueData.rwParamsInMsg.subscribeTo(self.fswRwConfigMsg)
-
-    # Global call to initialize every module
     def InitAllFSWObjects(self, SimBase):
         """Initialize all the FSW objects"""
 
@@ -343,7 +318,6 @@ class RS1FswModels:
         self.SetMRPFeedbackRWA(SimBase)
         self.SetMRPSteering()
         self.SetRateServo(SimBase)
-        self.SetRWMotorTorque()
 
     def setupGatewayMsgs(self, SimBase):
         """create C-wrapped gateway messages such that different modules can write to this message
@@ -352,13 +326,11 @@ class RS1FswModels:
         self.cmdTorqueDirectMsg = cMsgPy.CmdTorqueBodyMsg_C()
         self.attRefMsg = cMsgPy.AttRefMsg_C()
         self.attGuidMsg = cMsgPy.AttGuidMsg_C()
-        self.cmdRwMotorMsg = cMsgPy.ArrayMotorTorqueMsg_C()
 
         self.zeroGateWayMsgs()
 
         # connect gateway FSW effector command msgs with the dynamics
         SimBase.DynModels.extForceTorqueObject.cmdTorqueInMsg.subscribeTo(self.cmdTorqueDirectMsg)
-        SimBase.DynModels.rwStateEffector.rwMotorCmdInMsg.subscribeTo(self.cmdRwMotorMsg)
 
     def zeroGateWayMsgs(self):
         """Zero all the FSW gateway message payloads"""
@@ -366,7 +338,6 @@ class RS1FswModels:
         self.cmdTorqueDirectMsg.write(messaging.CmdTorqueBodyMsgPayload())
         self.attRefMsg.write(messaging.AttRefMsgPayload())
         self.attGuidMsg.write(messaging.AttGuidMsgPayload())
-        self.cmdRwMotorMsg.write(messaging.ArrayMotorTorqueMsgPayload())
 
 
 

@@ -35,9 +35,7 @@ class RS1Sim(SimulationBaseClass.SimBaseClass):
         self.dynProc = None
         self.fswProc = None
         
-        self.oneTimeRWFaultFlag = 0
         self.oneTimeFaultTime = -1
-        self.repeatRWFaultFlag = 0
 
         self.dynamics_added = False
         self.fsw_added = False
