@@ -32,10 +32,6 @@ class RS1DynamicModels():
         self.earth = None
         self.moon = None
         self.epochMsg = None
-        # self.RW1 = None
-        # self.RW2 = None
-        # self.RW3 = None
-        # self.RW4 = None
 
         # Define process name, task name and task time-step
         self.processName = SimBase.DynamicsProcessName
@@ -65,16 +61,7 @@ class RS1DynamicModels():
         SimBase.AddModelToTask(self.taskName, self.CSSConstellationObject, None, 108)
         SimBase.AddModelToTask(self.taskName, self.eclipseObject, None, 204)
         SimBase.AddModelToTask(self.taskName, self.extForceTorqueObject, None, 300)
-        
-        # SimBase.createNewEvent("addOneTimeRWFault", self.processTasksTimeStep, True,
-        #    ["self.TotalSim.CurrentNanos>=self.oneTimeFaultTime and self.oneTimeRWFaultFlag==1"],
-        #    ["self.DynModels.AddRWFault('friction',0.05,1, self.TotalSim.CurrentNanos)", "self.oneTimeRWFaultFlag=0"])
-
-        
-        # SimBase.createNewEvent("addRepeatedRWFault", self.processTasksTimeStep, True,
-        #    ["self.repeatRWFaultFlag==1"],
-        #    ["self.DynModels.PeriodicRWFault(1./3000,'friction',0.005,1, self.TotalSim.CurrentNanos)", "self.setEventActivity('addRepeatedRWFault',True)"])
-
+     
     # ------------------------------------------------------------------------------------------- #
     # These are module-initialization methods
 
