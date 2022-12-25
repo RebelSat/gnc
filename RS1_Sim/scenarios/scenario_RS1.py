@@ -5,6 +5,7 @@
 # 
 
 # Import utilities
+from Basilisk.simulation import simSynch
 from Basilisk.utilities import orbitalMotion, macros, vizSupport
 
 # Get current file path
@@ -48,12 +49,12 @@ class scenario_RS1(RS1Sim, RS1Scenario):
 
         # Configure Dynamics initial conditions
         oe = orbitalMotion.ClassicElements()
-        oe.a = 400000.0  # meters
-        oe.e = 0.1
-        oe.i = 33.3 * macros.D2R
-        oe.Omega = 48.2 * macros.D2R
-        oe.omega = 347.8 * macros.D2R
-        oe.f = 85.3 * macros.D2R
+        oe.a = 6738. * 1000  # meters semi-major axis
+        oe.e = 0.0005731 # eccentricity
+        oe.i = 51.6 * macros.D2R # inclination of orbital plane, use ISS
+        oe.Omega = 116.0054 * macros.D2R # right ascension of ascending node
+        oe.omega = 347.8 * macros.D2R # arguemnt of periapsis of the orbit
+        oe.f = 85.3 * macros.D2R # true anomaly of orbit
         mu = DynModels.gravFactory.gravBodies['earth'].mu
         rN, vN = orbitalMotion.elem2rv(mu, oe)
         orbitalMotion.rv2elem(mu, rN, vN)
@@ -92,8 +93,19 @@ class scenario_RS1(RS1Sim, RS1Scenario):
 
         return figureList
 
+def liveStream(RS1):
+    clockSync = simSynch.ClockSynch()
+    clockSync.accelFactor = 50.0 # how fast to accelerate stream
+    RS1.AddModelToTask(RS1.DynModels.taskName, clockSync)
+
+    # if this scenario is to interface with the BSK Viz, uncomment the following line
+    vizSupport.enableUnityVisualization(RS1, RS1.DynModels.taskName, 
+        RS1.DynModels.scObject, liveStream=True)
 
 def runScenario(scenario):
+
+    # Run Vizard
+    liveStream(scenario)
 
     # Initialize simulation
     scenario.InitializeSimulation()
@@ -102,11 +114,10 @@ def runScenario(scenario):
     scenario.modeRequest = 'standby'
 
     # Configure run time and execute simulation
-    simulationTime = macros.min2nano(10.)
+    simulationTime = macros.min2nano(100.)
     scenario.ConfigureStopTime(simulationTime)
 
     scenario.ExecuteSimulation()
-
 
 def run(showPlots):
     """
@@ -121,6 +132,7 @@ def run(showPlots):
     TheScenario = scenario_RS1()
     runScenario(TheScenario)
     figureList = TheScenario.pull_outputs(showPlots)
+
 
     return figureList
 
