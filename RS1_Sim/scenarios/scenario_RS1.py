@@ -107,6 +107,7 @@ def runScenario(scenario):
     # Run Vizard
     # liveStream(scenario)
 
+
     # Initialize simulation
     scenario.InitializeSimulation()
 
@@ -115,6 +116,7 @@ def runScenario(scenario):
 
     # Configure run time and execute simulation
     simulationTime = macros.min2nano(200.)
+
     scenario.ConfigureStopTime(simulationTime)
 
     scenario.ExecuteSimulation()
