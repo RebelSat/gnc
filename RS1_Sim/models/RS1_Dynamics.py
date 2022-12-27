@@ -7,10 +7,12 @@
 # 
 # 
 
+import os
 import numpy as np
 from Basilisk.utilities import macros as mc
 from Basilisk.utilities import unitTestSupport as sp
-from Basilisk.simulation import (spacecraft, extForceTorque, simpleNav, coarseSunSensor, eclipse)
+from Basilisk.simulation import (spacecraft, extForceTorque, simpleNav, 
+                                     coarseSunSensor, eclipse, radiationPressure)
 from Basilisk.simulation import ephemerisConverter
 from Basilisk.utilities import simIncludeGravBody
 from Basilisk.utilities import RigidBodyKinematics as rbk
@@ -44,6 +46,7 @@ class RS1DynamicModels():
         # Instantiate Dyn modules as objects
         self.scObject = spacecraft.Spacecraft()
         self.gravFactory = simIncludeGravBody.gravBodyFactory()
+        self.solarRadPressureObject = radiationPressure.RadiationPressure()
         self.extForceTorqueObject = extForceTorque.ExtForceTorque()
         self.simpleNavObject = simpleNav.SimpleNav()
         self.eclipseObject = eclipse.Eclipse()
@@ -53,13 +56,14 @@ class RS1DynamicModels():
         # Initialize all modules and write init one-time messages
         self.InitAllDynObjects()
 
-        # Assign initialized modules to tasks
+        # Assign initialized modules to tasks with priority values 
         SimBase.AddModelToTask(self.taskName, self.scObject, None, 201)
         SimBase.AddModelToTask(self.taskName, self.simpleNavObject, None, 109)
         SimBase.AddModelToTask(self.taskName, self.gravFactory.spiceObject, 200)
         SimBase.AddModelToTask(self.taskName, self.EarthEphemObject, 199)
         SimBase.AddModelToTask(self.taskName, self.CSSConstellationObject, None, 108)
         SimBase.AddModelToTask(self.taskName, self.eclipseObject, None, 204)
+        SimBase.AddModelToTask(self.taskName, self.solarRadPressureObject, None, 300)
         SimBase.AddModelToTask(self.taskName, self.extForceTorqueObject, None, 300)
      
     # ------------------------------------------------------------------------------------------- #
@@ -116,6 +120,31 @@ class RS1DynamicModels():
         for c in range(1, len(self.gravFactory.spiceObject.planetStateOutMsgs)):
             self.eclipseObject.addPlanetToModel(self.gravFactory.spiceObject.planetStateOutMsgs[c])
         self.eclipseObject.addSpacecraftToModel(self.scObject.scStateOutMsg)
+        
+    # Add solar radiation pressure to satellite
+    # TO DO: Check SunSpiceMsg Position Vector and check for eclipse
+    def SetSolarRadiationPressure(self):
+        """Set the solar radiation pressure on satellite."""
+        self.solarRadPressureObject.ModelTag = "solarRadiationDisturbance"
+
+        # Use cannonball which ignores attitude
+        self.solarRadPressureObject.setUseCannonballModel()
+        self.solarRadPressureObject.area = 0.03 # m^2 body surface area
+        self.solarRadPressureObject.coefficientReflection = 1.2 
+    
+        #Eclipse
+        self.sunEclipseMsgData = messaging.EclipseMsgPayload()
+        self.sunEclipseMsgData.shadowFactor = 0.5
+        self.sunEc1Msg = messaging.EclipseMsg().write(self.sunEclipseMsgData)
+        self.solarRadPressureObject.sunEclipseInMsg.subscribeTo(self.sunEc1Msg) 
+        
+        # Time and planetary or spacecraft body info from JPL ephemeris library 
+        self.sunSpiceMsg = messaging.SpicePlanetStateMsgPayload()
+        self.sunSpiceMsg.PositionVector = [507128401.716, 22652490.9092, -14854379.6232] # m, true position of planet for the time
+        self.sunMsg = messaging.SpicePlanetStateMsg().write(self.sunSpiceMsg)
+        self.solarRadPressureObject.sunEphmInMsg.subscribeTo(self.sunMsg)
+
+        self.scObject.addDynamicEffector(self.solarRadPressureObject)
 
     def SetExternalForceTorqueObject(self):
         """Set the external force and torque object."""
@@ -171,6 +200,7 @@ class RS1DynamicModels():
         """
         self.SetSpacecraftHub()
         self.SetGravityBodies()
+        self.SetSolarRadiationPressure()
         self.SetExternalForceTorqueObject()
         self.SetSimpleNavObject()
         self.SetEclipseObject()
