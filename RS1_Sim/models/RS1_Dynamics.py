@@ -157,7 +157,7 @@ class RS1DynamicModels():
         self.simpleNavObject.scStateInMsg.subscribeTo(self.scObject.scStateOutMsg)
 
     def SetCSSConstellation(self):
-        """Set the 8 CSS sensors"""
+        """Set the 4 CSS sensors"""
         self.CSSConstellationObject.ModelTag = "cssConstellation"
 
         def setupCSS(cssDevice):
@@ -170,16 +170,16 @@ class RS1DynamicModels():
 
         # setup CSS sensor normal vectors in body frame components
         nHat_B_List = [
-            [0.0, 0.707107, 0.707107],
-            [0.707107, 0., 0.707107],
-            [0.0, -0.707107, 0.707107],
-            [-0.707107, 0., 0.707107],
-            [0.0, -0.965926, -0.258819],
-            [-0.707107, -0.353553, -0.612372],
-            [0., 0.258819, -0.965926],
-            [0.707107, -0.353553, -0.612372]
+            [1., 0., 0.],
+            [0., 1., 0.],
+            [-1., 0., 0.],
+            [0., -1., 0.],
         ]
         numCSS = len(nHat_B_List)
+        
+        # TODO: once we receive exact location of sun sensors 
+        # TODO: create another list r_B like above. these are the 4 positions of the CSS in body frame 
+        # TODO: within the for loop below, also add the positions to cssList
 
         # store all
         cssList = []

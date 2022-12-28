@@ -7,6 +7,7 @@
 # Import utilities
 from Basilisk.simulation import simSynch
 from Basilisk.utilities import orbitalMotion, macros, vizSupport
+import numpy as np
 
 # Get current file path
 import sys, os, inspect
@@ -71,17 +72,28 @@ class scenario_RS1(RS1Sim, RS1Scenario):
         self.AddModelToTask(DynModels.taskName, self.sNavAttRec)
         self.AddModelToTask(DynModels.taskName, self.sNavTransRec)
 
+        # log the outputs of the CSS and add it to task
+        self.cssConstLog = DynModels.CSSConstellationObject.constellationOutMsg.recorder()
+        self.AddModelToTask(DynModels.taskName, self.cssConstLog)
+
     def pull_outputs(self, showPlots):
+        DynModels = self.get_DynModel()
+
         # Dynamics process outputs
         sigma_BN = self.sNavAttRec.sigma_BN
         r_BN_N = self.sNavTransRec.r_BN_N
         v_BN_N = self.sNavTransRec.v_BN_N
+
+        dataCSSArray = []
+        dataCSSArray = self.cssConstLog.CosValue[:, :len(DynModels.CSSConstellationObject.sensorList)]
+        np.set_printoptions(precision=16)
 
         # Plot results
         RS1_plt.clear_all_plots()
         timeLineSet = self.sNavAttRec.times() * macros.NANO2MIN
         RS1_plt.plot_orbit(r_BN_N)
         RS1_plt.plot_orientation(timeLineSet, r_BN_N, v_BN_N, sigma_BN)
+        RS1_plt.plot_CSS(self, dataCSSArray)
 
         figureList = {}
         if showPlots:

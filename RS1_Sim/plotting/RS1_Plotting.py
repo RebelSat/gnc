@@ -10,6 +10,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import math as m
+import os
 from Basilisk.utilities import macros as mc
 from Basilisk.utilities import unitTestSupport
 from Basilisk.utilities import RigidBodyKinematics
@@ -133,6 +134,22 @@ def plot_shadow_fraction(timeAxis, shadow_factor, id=None):
     plt.xlabel('Time min')
     plt.ylabel('Shadow Fraction')
     return
+
+def plot_CSS(RS1, dataCSSArray, id=None):
+    plt.figure(id)
+    fileNameString = os.path.basename(os.path.splitext(__file__)[0])
+
+    for idx in range(len(RS1.DynModels.CSSConstellationObject.sensorList)):
+        plt.plot(RS1.cssConstLog.times()*mc.NANO2SEC, dataCSSArray[:, idx],
+                    color=unitTestSupport.getLineColor(idx,4),
+                    label='CSS$_{'+str(idx)+'}$')
+
+    plt.legend(loc='lower right')
+    plt.xlabel('Time [sec]')
+    plt.ylabel('CSS Signals ')
+    # figureList = {}
+    # pltName = fileNameString+str(int(useCSSConstellation))+str(int(usePlatform))+str(int(useEclipse))+str(int(useKelly))
+    # figureList[pltName] = plt.figure(1)
 
 
 def plot_sun_point(timeAxis, sunPoint, id=None):
