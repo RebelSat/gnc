@@ -29,10 +29,12 @@ import numpy as np
 from Basilisk.utilities import macros as mc
 from Basilisk.utilities import unitTestSupport as sp
 from Basilisk.simulation import (spacecraft, extForceTorque, simpleNav, 
-                                     coarseSunSensor, eclipse, radiationPressure)
+                                     coarseSunSensor, eclipse, radiationPressure,
+                                     magneticFieldWMM)
 from Basilisk.simulation import ephemerisConverter
 from Basilisk.utilities import simIncludeGravBody
 from Basilisk.utilities import RigidBodyKinematics as rbk
+from Basilisk.utilities import unitTestSupport
 from Basilisk.topLevelModules import pyswice
 from Basilisk.architecture import messaging
 
@@ -69,6 +71,7 @@ class RS1DynamicModels():
         self.eclipseObject = eclipse.Eclipse()
         self.CSSConstellationObject = coarseSunSensor.CSSConstellation()
         self.EarthEphemObject = ephemerisConverter.EphemerisConverter()
+        self.magModule = magneticFieldWMM.MagneticFieldWMM()
 
         # Initialize all modules and write init one-time messages
         self.InitAllDynObjects()
@@ -82,6 +85,7 @@ class RS1DynamicModels():
         SimBase.AddModelToTask(self.taskName, self.eclipseObject, None, 204)
         SimBase.AddModelToTask(self.taskName, self.solarRadPressureObject, None, 300)
         SimBase.AddModelToTask(self.taskName, self.extForceTorqueObject, None, 300)
+        SimBase.AddModelToTask(self.taskName, self.magModule, None, 300)
      
     # ------------------------------------------------------------------------------------------- #
     # These are module-initialization methods
@@ -137,11 +141,30 @@ class RS1DynamicModels():
         for c in range(1, len(self.gravFactory.spiceObject.planetStateOutMsgs)):
             self.eclipseObject.addPlanetToModel(self.gravFactory.spiceObject.planetStateOutMsgs[c])
         self.eclipseObject.addSpacecraftToModel(self.scObject.scStateOutMsg)
-        
+
+    def SetMagneticField(self):
+        """
+        Set the magnetic field using the World Magnetic Model (WMM)
+        """
+        self.magModule.ModelTag = "WMM"
+        self.magModule.dataPath = bskPath + '/supportData/MagneticField/'
+
+        # Set elliptical orbit
+        # self.magModule.envMinReach = 100000.
+        # self.magModule.envMaxReach = 600000.
+
+        #add spacecraft to magnetic field module 
+        self.magModule.addSpacecraftToModel(self.scObject.scStateOutMsg)
+
+        # connect message
+        self.magModule.epochInMsg.subscribeTo(self.epochMsg)
+
     # Add solar radiation pressure to satellite
     # TO DO: Check SunSpiceMsg Position Vector and check for eclipse
     def SetSolarRadiationPressure(self):
-        """Set the solar radiation pressure on satellite."""
+        """
+        Set the solar radiation pressure on satellite.
+        """
         self.solarRadPressureObject.ModelTag = "solarRadiationDisturbance"
 
         # Use cannonball which ignores attitude
@@ -153,8 +176,8 @@ class RS1DynamicModels():
         self.sunEclipseMsgData = messaging.EclipseMsgPayload()
         self.sunEclipseMsgData.shadowFactor = 0.5
         self.sunEc1Msg = messaging.EclipseMsg().write(self.sunEclipseMsgData)
-        self.solarRadPressureObject.sunEclipseInMsg.subscribeTo(self.sunEc1Msg) 
-        
+        self.solarRadPressureObject.sunEclipseInMsg.subscribeTo(self.sunEc1Msg)
+         
         # Time and planetary or spacecraft body info from JPL ephemeris library 
         self.sunSpiceMsg = messaging.SpicePlanetStateMsgPayload()
         self.sunSpiceMsg.PositionVector = [507128401.716, 22652490.9092, -14854379.6232] # m, true position of planet for the time
@@ -217,6 +240,7 @@ class RS1DynamicModels():
         """
         self.SetSpacecraftHub()
         self.SetGravityBodies()
+        self.SetMagneticField()
         self.SetSolarRadiationPressure()
         self.SetExternalForceTorqueObject()
         self.SetSimpleNavObject()

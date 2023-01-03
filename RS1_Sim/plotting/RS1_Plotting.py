@@ -174,6 +174,20 @@ def plot_sun_point(timeAxis, sunPoint, id=None):
     plt.ylabel('Sun Point Vec')
     return
 
+def plot_magnetic_field(timeAxis, magData, id=None):
+    plt.figure(id)
+    fig = plt.gcf()
+    ax = fig.gca()
+    ax.ticklabel_format(useOffset=False, style='sci')
+    ax.get_yaxis().set_major_formatter(plt.FuncFormatter(lambda x, loc: "{:,}".format(int(x))))
+    for idx in range(3):
+        plt.plot(timeAxis, magData[:, idx] * 1e9,
+            color=unitTestSupport.getLineColor(idx, 3),
+            label=r'$B\_N_{' + str(idx) + '}$')
+    plt.legend(loc='lower right')
+    plt.xlabel('Time [mins]')
+    plt.ylabel('Magnetic Field [nT]')
+    return
 
 def plot_orbit(r_BN, id=None):
     plt.figure(id)
