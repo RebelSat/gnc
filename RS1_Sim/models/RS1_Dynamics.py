@@ -30,7 +30,7 @@ from Basilisk.utilities import macros as mc
 from Basilisk.utilities import unitTestSupport as sp
 from Basilisk.simulation import (spacecraft, extForceTorque, simpleNav, 
                                      coarseSunSensor, eclipse, radiationPressure,
-                                     magneticFieldWMM)
+                                     magnetometer, magneticFieldWMM, MtbEffector)
 from Basilisk.simulation import ephemerisConverter
 from Basilisk.utilities import simIncludeGravBody
 from Basilisk.utilities import RigidBodyKinematics as rbk
@@ -72,6 +72,9 @@ class RS1DynamicModels():
         self.CSSConstellationObject = coarseSunSensor.CSSConstellation()
         self.EarthEphemObject = ephemerisConverter.EphemerisConverter()
         self.magModule = magneticFieldWMM.MagneticFieldWMM()
+        self.TAM = magnetometer.Magnetometer()
+        self.mtbEff = MtbEffector.MtbEffector()
+
 
         # Initialize all modules and write init one-time messages
         self.InitAllDynObjects()
@@ -86,7 +89,8 @@ class RS1DynamicModels():
         SimBase.AddModelToTask(self.taskName, self.solarRadPressureObject, None, 300)
         SimBase.AddModelToTask(self.taskName, self.extForceTorqueObject, None, 300)
         SimBase.AddModelToTask(self.taskName, self.magModule, None, 300)
-     
+        SimBase.AddModelToTask(self.taskName, self.mtbEff)
+
     # ------------------------------------------------------------------------------------------- #
     # These are module-initialization methods
 
@@ -232,6 +236,10 @@ class RS1DynamicModels():
 
         # assign the list of CSS devices to the CSS array class
         self.CSSConstellationObject.sensorList = coarseSunSensor.CSSVector(cssList)
+
+    def setMtb(self):
+        self.mtbEff.ModelTag = "MtbEff"
+        self.scObject.addDynamicEffector(self.mtbEff)
 
     # Global call to initialize every module
     def InitAllDynObjects(self):
