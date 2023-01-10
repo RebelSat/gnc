@@ -29,9 +29,11 @@ from Basilisk.utilities import macros as mc
 
 from Basilisk.fswAlgorithms import (hillPoint, inertial3D, attTrackingError, mrpFeedback,
                                     velocityPoint, mrpSteering, rateServoFullNonlinear,
+                                    tamComm, torque2Dipole, dipoleMapping, mtbFeedforward,
                                     sunSafePoint, cssWlsEst)
 
 import numpy as np
+from Basilisk.simulation import magnetometer
 from Basilisk.utilities import RigidBodyKinematics as rbk
 from Basilisk.utilities import fswSetupRW
 
@@ -42,6 +44,9 @@ import Basilisk.architecture.cMsgCInterfacePy as cMsgPy
 class RS1FswModels:
     """Defines the RS-1 FSW class"""
     def __init__(self, SimBase, fswRate):
+
+        self.taskName = "FSWTask"
+        
         # define empty class variables
         self.vcMsg = None
         self.fswRwConfigMsg = None
@@ -83,17 +88,36 @@ class RS1FswModels:
         self.mrpFeedbackControlWrap = SimBase.setModelDataWrap(self.mrpFeedbackControlData)
         self.mrpFeedbackControlWrap.ModelTag = "mrpFeedbackControl"
 
-        self.mrpFeedbackRWsData = mrpFeedback.mrpFeedbackConfig()
-        self.mrpFeedbackRWsWrap = SimBase.setModelDataWrap(self.mrpFeedbackRWsData)
-        self.mrpFeedbackRWsWrap.ModelTag = "mrpFeedbackRWs"
+        # self.mrpFeedbackRWsData = mrpFeedback.mrpFeedbackConfig()
+        # self.mrpFeedbackRWsWrap = SimBase.setModelDataWrap(self.mrpFeedbackRWsData)
+        # self.mrpFeedbackRWsWrap.ModelTag = "mrpFeedbackRWs"
 
         self.mrpSteeringData = mrpSteering.mrpSteeringConfig()
         self.mrpSteeringWrap = SimBase.setModelDataWrap(self.mrpSteeringData)
         self.mrpSteeringWrap.ModelTag = "MRP_Steering"
 
-        self.rateServoData = rateServoFullNonlinear.rateServoFullNonlinearConfig()
-        self.rateServoWrap = SimBase.setModelDataWrap(self.rateServoData)
-        self.rateServoWrap.ModelTag = "rate_servo"
+        # self.rateServoData = rateServoFullNonlinear.rateServoFullNonlinearConfig()
+        # self.rateServoWrap = SimBase.setModelDataWrap(self.rateServoData)
+        # self.rateServoWrap.ModelTag = "rate_servo"
+
+        self.TAMData = magnetometer.Magnetometer()
+        self.TAMData.ModelTag = "TAM_sensor"
+
+        self.tamCommConfig = tamComm.tamConfigData()
+        self.tamCommWrap = SimBase.setModelDataWrap(self.tamCommConfig)
+        self.tamCommWrap.ModelTag = "tamComm"
+
+        self.torque2DipoleConfig = torque2Dipole.torque2DipoleConfig()
+        self.torque2DipoleWrap = SimBase.setModelDataWrap(self.torque2DipoleConfig)
+        self.torque2DipoleWrap.ModelTag = "torque2Dipole"
+
+        self.dipoleMappingConfig = dipoleMapping.dipoleMappingConfig()
+        self.dipoleMappingWrap = SimBase.setModelDataWrap(self.torque2DipoleConfig)
+        self.dipoleMappingWrap.ModelTag = "torque2Dipole"
+
+        self.mtbFeedforwardConfig = mtbFeedforward.mtbFeedforwardConfig()
+        self.mtbFeedforwardWrap = SimBase.setModelDataWrap(self.mtbFeedforwardConfig)
+        self.mtbFeedforwardWrap.ModelTag = "mtbFeedforward"
 
         # create the FSW module gateway messages
         self.setupGatewayMsgs(SimBase)
@@ -107,8 +131,12 @@ class RS1FswModels:
         SimBase.fswProc.addTask(SimBase.CreateNewTask("sunSafePointTask", self.processTasksTimeStep), 20)
         SimBase.fswProc.addTask(SimBase.CreateNewTask("velocityPointTask", self.processTasksTimeStep), 20)
         SimBase.fswProc.addTask(SimBase.CreateNewTask("mrpFeedbackTask", self.processTasksTimeStep), 10)
-        SimBase.fswProc.addTask(SimBase.CreateNewTask("mrpSteeringRWsTask", self.processTasksTimeStep), 10)
-        SimBase.fswProc.addTask(SimBase.CreateNewTask("mrpFeedbackRWsTask", self.processTasksTimeStep), 10)
+        # SimBase.fswProc.addTask(SimBase.CreateNewTask("mrpSteeringRWsTask", self.processTasksTimeStep), 10)
+        # SimBase.fswProc.addTask(SimBase.CreateNewTask("mrpFeedbackRWsTask", self.processTasksTimeStep), 10)
+        SimBase.fswProc.addTask(SimBase.CreateNewTask("mtbControlTask", self.processTasksTimeStep), 10)    
+        # SimBase.fswProc.addTask(SimBase.CreateNewTask("TAMTask", self.processTasksTimeStep), 10)
+        # SimBase.fswProc.addTask(SimBase.CreateNewTask("tamCommTask", self.processTasksTimeStep), 10)
+        # SimBase.fswProc.addTask(SimBase.CreateNewTask("torque2DipoleTask", self.processTasksTimeStep), 10)
 
         # Assign initialized modules to tasks
         SimBase.AddModelToTask("inertial3DPointTask", self.inertial3DWrap, self.inertial3DData, 10)
@@ -125,11 +153,22 @@ class RS1FswModels:
 
         SimBase.AddModelToTask("mrpFeedbackTask", self.mrpFeedbackControlWrap, self.mrpFeedbackControlData, 10)
 
-        SimBase.AddModelToTask("mrpSteeringRWsTask", self.mrpSteeringWrap, self.mrpSteeringData, 10)
-        SimBase.AddModelToTask("mrpSteeringRWsTask", self.rateServoWrap, self.rateServoData, 9)
+        # SimBase.AddModelToTask("mrpSteeringRWsTask", self.mrpSteeringWrap, self.mrpSteeringData, 10)
+        # SimBase.AddModelToTask("mrpSteeringRWsTask", self.rateServoWrap, self.rateServoData, 9)
     
-        SimBase.AddModelToTask("mrpFeedbackRWsTask", self.mrpFeedbackRWsWrap, self.mrpFeedbackRWsData, 9)
-    
+        # SimBase.AddModelToTask("mrpFeedbackRWsTask", self.mrpFeedbackRWsWrap, self.mrpFeedbackRWsData, 9)
+
+        SimBase.AddModelToTask("mtbControlTask", self.TAMData, 10)
+        SimBase.AddModelToTask("mtbControlTask", self.tamCommWrap, self.tamCommConfig, 10)
+        SimBase.AddModelToTask("mtbControlTask", self.torque2DipoleWrap, self.torque2DipoleConfig, 10)
+        SimBase.AddModelToTask("mtbControlTask", self.dipoleMappingWrap, self.dipoleMappingConfig, 10)
+        SimBase.AddModelToTask("mtbControlTask", self.mtbFeedforwardWrap, self.mtbFeedforwardConfig, 10)
+
+
+        # SimBase.AddModelToTask("TAMTask", self.TAMData, 10)
+        # SimBase.AddModelToTask("tamcommTask", self.tamCommWrap, self.tamCommConfig, 10)
+        # SimBase.AddModelToTask("torque2Dipole", self.torque2DipoleWrap, self.torque2DipoleConfig, 10)
+
         # Create events to be called for triggering GN&C maneuvers
         SimBase.fswProc.disableAllTasks()
 
@@ -230,14 +269,10 @@ class RS1FswModels:
         cssConfig = messaging.CSSConfigMsgPayload()
         totalCSSList = []
         nHat_B_vec = [
-            [0.0, 0.707107, 0.707107],
-            [0.707107, 0., 0.707107],
-            [0.0, -0.707107, 0.707107],
-            [-0.707107, 0., 0.707107],
-            [0.0, -0.965926, -0.258819],
-            [-0.707107, -0.353553, -0.612372],
-            [0., 0.258819, -0.965926],
-            [0.707107, -0.353553, -0.612372]
+            [1., 0., 0.],
+            [0., 1., 0.],
+            [-1., 0., 0.],
+            [0., -1., 0.],
         ]
         for CSSHat in nHat_B_vec:
             CSSConfigElement = messaging.CSSUnitConfigMsgPayload()
@@ -263,16 +298,16 @@ class RS1FswModels:
         self.mrpFeedbackControlData.P = 30.0
         self.mrpFeedbackControlData.integralLimit = 2. / self.mrpFeedbackControlData.Ki * 0.1
 
-    def SetMRPFeedbackRWA(self, SimBase):
-        """Set the MRP feedback information if RWs are considered"""
-        self.mrpFeedbackRWsData.K = 3.5
-        self.mrpFeedbackRWsData.Ki = -1  # Note: make value negative to turn off integral feedback
-        self.mrpFeedbackRWsData.P = 30.0
-        self.mrpFeedbackRWsData.integralLimit = 2. / self.mrpFeedbackRWsData.Ki * 0.1
+    # def SetMRPFeedbackRWA(self, SimBase):
+    #     """Set the MRP feedback information if RWs are considered"""
+    #     self.mrpFeedbackRWsData.K = 3.5
+    #     self.mrpFeedbackRWsData.Ki = -1  # Note: make value negative to turn off integral feedback
+    #     self.mrpFeedbackRWsData.P = 30.0
+    #     self.mrpFeedbackRWsData.integralLimit = 2. / self.mrpFeedbackRWsData.Ki * 0.1
 
-        self.mrpFeedbackRWsData.vehConfigInMsg.subscribeTo(self.vcMsg)
-        self.mrpFeedbackRWsData.guidInMsg.subscribeTo(self.attGuidMsg)
-        cMsgPy.CmdTorqueBodyMsg_C_addAuthor(self.mrpFeedbackRWsData.cmdTorqueOutMsg, self.cmdTorqueMsg)
+    #     self.mrpFeedbackRWsData.vehConfigInMsg.subscribeTo(self.vcMsg)
+    #     self.mrpFeedbackRWsData.guidInMsg.subscribeTo(self.attGuidMsg)
+    #     cMsgPy.CmdTorqueBodyMsg_C_addAuthor(self.mrpFeedbackRWsData.cmdTorqueOutMsg, self.cmdTorqueMsg)
 
     def SetMRPSteering(self):
         """Set the MRP Steering module"""
@@ -282,17 +317,17 @@ class RS1FswModels:
         self.mrpSteeringData.omega_max = 1.0 * mc.D2R
         self.mrpSteeringData.guidInMsg.subscribeTo(self.attGuidMsg)
 
-    def SetRateServo(self, SimBase):
-        """Set the rate servo module"""
-        self.rateServoData.guidInMsg.subscribeTo(self.attGuidMsg)
-        self.rateServoData.vehConfigInMsg.subscribeTo(self.vcMsg)
-        self.rateServoData.rateSteeringInMsg.subscribeTo(self.mrpSteeringData.rateCmdOutMsg)
-        cMsgPy.CmdTorqueBodyMsg_C_addAuthor(self.rateServoData.cmdTorqueOutMsg, self.cmdTorqueMsg)
+    # def SetRateServo(self, SimBase):
+    #     """Set the rate servo module"""
+    #     self.rateServoData.guidInMsg.subscribeTo(self.attGuidMsg)
+    #     self.rateServoData.vehConfigInMsg.subscribeTo(self.vcMsg)
+    #     self.rateServoData.rateSteeringInMsg.subscribeTo(self.mrpSteeringData.rateCmdOutMsg)
+    #     cMsgPy.CmdTorqueBodyMsg_C_addAuthor(self.rateServoData.cmdTorqueOutMsg, self.cmdTorqueMsg)
 
-        self.rateServoData.Ki = 5.0
-        self.rateServoData.P = 150.0
-        self.rateServoData.integralLimit = 2. / self.rateServoData.Ki * 0.1
-        self.rateServoData.knownTorquePntB_B = [0., 0., 0.]
+    #     self.rateServoData.Ki = 5.0
+    #     self.rateServoData.P = 150.0
+    #     self.rateServoData.integralLimit = 2. / self.rateServoData.Ki * 0.1
+    #     self.rateServoData.knownTorquePntB_B = [0., 0., 0.]
 
     def SetVehicleConfiguration(self):
         """Set the spacecraft configuration information"""
@@ -317,6 +352,56 @@ class RS1FswModels:
 
         self.fswRwConfigMsg = fswSetupRW.writeConfigMessage()
 
+    def SetTAMconfig(self, SimBase):
+        self.TAMData.scaleFactor = 1.0
+        self.TAMData.senNoiseStd = [0.0, 0.0, 0.0]
+
+        self.TAMData.stateInMsg.subscribeTo(SimBase.DynModels.scObject.scStateOutMsg)
+        self.TAMData.magInMsg.subscribeTo(SimBase.DynModels.magModule.envOutMsgs[0])
+        self.tamCommConfig.tamInMsg.subscribeTo(self.TAMData.tamDataOutMsg)
+
+    def SettamComm(self, SimBase):
+        self.tamCommConfig.dcm_BS = [1., 0., 0., 0., 1., 0., 0., 0., 1.]
+
+    def SetMtbConfig(self, SimBase):
+        # mtbConfigData message
+        self.mtbConfigParams = messaging.MTBArrayConfigMsgPayload()
+        self.mtbConfigParams.numMTB = 3
+
+        # row major torque bar alignments
+        self.mtbConfigParams.GtMatrix_B = [
+            1., 0., 0.,
+            0., 1., 0.,
+            0., 0., 1.,
+            ]
+        maxDipole = 0.1
+        self.mtbConfigParams.maxMtbDipoles = [maxDipole]*self.mtbConfigParams.numMTB
+        self.mtbParamsInMsg = messaging.MTBArrayConfigMsg().write(self.mtbConfigParams)
+
+        SimBase.DynModels.mtbEff.mtbCmdInMsg.subscribeTo(self.dipoleMappingConfig.dipoleRequestMtbOutMsg)
+        SimBase.DynModels.mtbEff.mtbParamsInMsg.subscribeTo(self.mtbParamsInMsg)
+        SimBase.DynModels.mtbEff.magInMsg.subscribeTo(SimBase.DynModels.magModule.envOutMsgs[0])
+
+    def SetDipoleMappingConfig(self, SimBase):
+        self.dipoleMappingConfig.steeringMatrix = [
+            1., 0., 0.,
+            0., 1., 0.,
+            0., 0., 1.,
+            ]
+
+        self.dipoleMappingConfig.dipoleRequestBodyInMsg.subscribeTo(self.torque2DipoleConfig.dipoleRequestOutMsg)
+        self.dipoleMappingConfig.mtbArrayConfigParamsInMsg.subscribeTo(self.mtbParamsInMsg)
+
+    def SetMtbFeedforward(self, SimBase):
+        self.mtbFeedforwardConfig.vehControlInMsg.subscribeTo(self.mrpFeedbackControlData.cmdTorqueOutMsg)
+        self.mtbFeedforwardConfig.dipoleRequestMtbInMsg.subscribeTo(self.dipoleMappingConfig.dipoleRequestMtbOutMsg)
+        self.mtbFeedforwardConfig.tamSensorBodyInMsg.subscribeTo(self.tamCommConfig.tamOutMsg)
+        self.mtbFeedforwardConfig.mtbArrayConfigParamsInMsg.subscribeTo(self.mtbParamsInMsg)
+
+    def SetTorque2Dipole(self, SimBase):
+        self.torque2DipoleConfig.tauRequestInMsg.subscribeTo(self.mtbFeedforwardConfig.vehControlOutMsg)
+        self.torque2DipoleConfig.tamSensorBodyInMsg.subscribeTo(self.tamCommConfig.tamOutMsg)
+
     def InitAllFSWObjects(self, SimBase):
         """Initialize all the FSW objects"""
 
@@ -331,9 +416,16 @@ class RS1FswModels:
         self.SetVelocityPointGuidance(SimBase)
         self.SetAttitudeTrackingError(SimBase)
         self.SetMRPFeedbackControl(SimBase)
-        self.SetMRPFeedbackRWA(SimBase)
+        # self.SetMRPFeedbackRWA(SimBase)
         self.SetMRPSteering()
-        self.SetRateServo(SimBase)
+        # self.SetRateServo(SimBase)
+        self.SetTAMconfig(SimBase)
+        self.SettamComm(SimBase)
+        self.SetTorque2Dipole(SimBase)
+        self.SetMtbConfig(SimBase)
+        self.SetMtbFeedforward(SimBase)
+        self.SetDipoleMappingConfig(SimBase)
+
 
     def setupGatewayMsgs(self, SimBase):
         """create C-wrapped gateway messages such that different modules can write to this message

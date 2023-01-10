@@ -78,21 +78,33 @@ class scenario_RS1(RS1Sim, RS1Scenario):
         DynModels.scObject.hub.r_CN_NInit = rN  # m   - r_CN_N
         DynModels.scObject.hub.v_CN_NInit = vN  # m/s - v_CN_N
         DynModels.scObject.hub.sigma_BNInit = [[0.1], [0.2], [-0.3]]  # sigma_BN_B, initial attitude of B frame represented as an MRP
-        DynModels.scObject.hub.omega_BN_BInit = [[0], [0], [0]]  # rad/s - omega_BN_B, initial angular velocity of B frame represented in B frame
+        DynModels.scObject.hub.omega_BN_BInit = [[0.001], [-0.01], [0.03]]  # rad/s - omega_BN_B, initial angular velocity of B frame represented in B frame
 
     def log_outputs(self):
         # Dynamics process outputs
         DynModels = self.get_DynModel()
+        FswModels = self.get_FswModel()
+
         self.sNavAttRec = DynModels.simpleNavObject.attOutMsg.recorder()
         self.sNavTransRec = DynModels.simpleNavObject.transOutMsg.recorder()
         self.cssConstLog = DynModels.CSSConstellationObject.constellationOutMsg.recorder()
         self.magLog = DynModels.magModule.envOutMsgs[0].recorder()
- 
+
+        self.attErrorLog = FswModels.trackingErrorData.attGuidOutMsg.recorder()
+        self.tamLog = FswModels.TAMData.tamDataOutMsg.recorder()
+        self.tamCommLog = FswModels.tamCommConfig.tamOutMsg.recorder()
+        self.mtbDipoleCmdsLog = FswModels.dipoleMappingConfig.dipoleRequestMtbOutMsg.recorder()
+
         self.AddModelToTask(DynModels.taskName, self.sNavAttRec)
         self.AddModelToTask(DynModels.taskName, self.sNavTransRec)
         self.AddModelToTask(DynModels.taskName, self.cssConstLog)
         self.AddModelToTask(DynModels.taskName, self.magLog)
- 
+
+        self.AddModelToTask("mtbControlTask", self.attErrorLog)
+        self.AddModelToTask("mtbControlTask", self.tamLog)
+        self.AddModelToTask("mtbControlTask", self.tamCommLog)
+        self.AddModelToTask("mtbControlTask", self.mtbDipoleCmdsLog)
+
     def pull_outputs(self, showPlots):
         DynModels = self.get_DynModel()
 
@@ -107,11 +119,9 @@ class scenario_RS1(RS1Sim, RS1Scenario):
         RS1_plt.clear_all_plots()
         timeLineSet = self.sNavAttRec.times() * macros.NANO2MIN
         RS1_plt.plot_orbit(r_BN_N)
-        # RS1_plt.plot_orientation(timeLineSet, r_BN_N, v_BN_N, sigma_BN)
-        RS1_plt.plot_CSS(self, dataCSSArray)
-        RS1_plt.plot_magnetic_field(timeLineSet, magData)
-
-        print(magData)
+        RS1_plt.plot_orientation(timeLineSet, r_BN_N, v_BN_N, sigma_BN)
+        # RS1_plt.plot_CSS(self, dataCSSArray)
+        # RS1_plt.plot_magnetic_field(timeLineSet, magData)
 
         figureList = {}
         if showPlots:
